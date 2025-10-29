@@ -15,36 +15,42 @@ jobs:
         keymap: [modified, default]
 
     steps:
-      - name: Check out repository
+      - name: Check out your repo
         uses: actions/checkout@v4
 
-      - name: Show keymap folders (host)
+      - name: Clone a clean QMK firmware tree (shallow)
         run: |
-          ls -al keyboards/ergodox_ez/keymaps || true
-          ls -al keyboards/ergodox_ez/keymaps/${{ matrix.keymap }} || true
+          git clone --depth=1 https://github.com/qmk/qmk_firmware.git qmk_firmware
+          # optional: pin a known-good tag/branch
+          # (cd qmk_firmware && git fetch --tags && git checkout <tag>)
 
-      # Use the up-to-date QMK CLI image and initialize QMK against the
-      # checked-out repo path. Then compile.
-      - name: Build with QMK CLI (ghcr)
+      - name: Copy your keymap into the clean tree
+        run: |
+          test -d keyboards/ergodox_ez/keymaps/${{ matrix.keymap }} || \
+            (echo "Missing keyboards/ergodox_ez/keymaps/${{ matrix.keymap }} in your repo" && exit 1)
+          mkdir -p qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}
+          cp -vr keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}/* \
+                qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}/
+
+      - name: Show keymap files (debug)
+        run: |
+          ls -al qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}
+
+      # Build inside the official QMK CLI container, against the clean tree
+      - name: Build (make ergodox_ez:${{ matrix.keymap }})
         run: |
           docker run --rm \
-            -e QMK_HOME=/qmk \
-            -v "$GITHUB_WORKSPACE":/qmk \
+            -v "$GITHUB_WORKSPACE/qmk_firmware":/qmk \
             -w /qmk \
             ghcr.io/qmk/qmk_cli:latest \
-            bash -lc "
-              qmk --version && \
-              qmk setup -H /qmk --yes && \
-              qmk info -kb ergodox_ez -km ${{ matrix.keymap }} && \
-              qmk compile -kb ergodox_ez -km ${{ matrix.keymap }}
-            "
+            bash -lc "make SKIP_GIT=1 ergodox_ez:${{ matrix.keymap }}"
 
       - name: Collect firmware artifacts
         run: |
           mkdir -p firmware_out/${{ matrix.keymap }}
-          # QMK CLI drops output under .build/
-          cp -f .build/*.hex firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
-          cp -f .build/*.bin firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
+          cp -f qmk_firmware/.build/*.hex firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
+          # QMK sometimes also writes to repo root; grab those too just in case
+          cp -f qmk_firmware/*.hex        firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
           echo "Artifacts for ${{ matrix.keymap }}:"
           ls -al firmware_out/${{ matrix.keymap }} || true
 
