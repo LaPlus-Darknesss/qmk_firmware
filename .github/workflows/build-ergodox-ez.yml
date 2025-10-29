@@ -18,13 +18,13 @@ jobs:
           ls -al keyboards/ergodox_ez/keymaps || true
           ls -al keyboards/ergodox_ez/keymaps/default || true
 
-      - name: Build firmware (make ergodox_ez:keymaps:default)
+      - name: Build firmware (make ergodox_ez:default)
         run: |
           docker run --rm \
             -v "$GITHUB_WORKSPACE":/qmk \
             -w /qmk \
             qmkfm/qmk_firmware \
-            make ergodox-ez:keymaps:default
+            make ergodox-ez:default
             
       - name: Collect firmware artifact
         run: |
