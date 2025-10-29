@@ -18,12 +18,9 @@ jobs:
       - name: Check out your repo
         uses: actions/checkout@v4
 
-      - name: Clone QMK firmware (shallow) + init submodules
+      - name: Clone clean QMK (shallow)
         run: |
           git clone --depth=1 https://github.com/qmk/qmk_firmware.git qmk_firmware
-          cd qmk_firmware
-          git submodule sync --recursive
-          git submodule update --init --recursive
 
       - name: Copy your keymap into the clean tree
         run: |
@@ -37,19 +34,17 @@ jobs:
         run: |
           ls -al qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}
 
-      # Build inside the QMK CLI container; qmk setup ensures deps & submodules OK
-      - name: Build with QMK CLI (compile ergodox_ez:${{ matrix.keymap }})
+      # IMPORTANT: do submodules AND the build INSIDE the same container
+      - name: Build inside qmk_firmware Docker (submodules + make)
         run: |
           docker run --rm \
-            -e QMK_HOME=/qmk \
             -v "$GITHUB_WORKSPACE/qmk_firmware":/qmk \
             -w /qmk \
-            ghcr.io/qmk/qmk_cli:latest \
+            qmkfm/qmk_firmware \
             bash -lc "
-              qmk --version && \
-              qmk setup -H /qmk --yes && \
-              qmk info -kb ergodox_ez -km ${{ matrix.keymap }} && \
-              qmk compile -kb ergodox_ez -km ${{ matrix.keymap }}
+              git submodule sync --recursive &&
+              git submodule update --init --recursive &&
+              make -j2 SKIP_GIT=1 ergodox_ez:${{ matrix.keymap }}
             "
 
       - name: Collect firmware artifacts
