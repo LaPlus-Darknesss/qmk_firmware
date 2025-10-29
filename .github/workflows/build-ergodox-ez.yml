@@ -1,0 +1,27 @@
+name: Build ErgoDox EZ (QMK)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'keyboards/ergodox_ez/keymaps/modified**'
+      - '.github/workflows/build-ergodox-ez.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with QMK CLI container
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE":/qmk qmkfm/qmk_cli \
+            qmk compile -kb ergodox_ez/glow -km modified
+      - name: Collect firmware
+        run: |
+          mkdir -p firmware_out
+          cp -f .build/*.hex firmware_out/ || true
+          cp -f .build/*.bin firmware_out/ || true
+          ls -al firmware_out || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ergodox-ez-firmware
+          path: firmware_out
