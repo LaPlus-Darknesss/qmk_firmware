@@ -3,7 +3,7 @@ name: Build Firmware
 on:
   push:
     branches:
-      - main  # Adjust to your main branch if necessary
+      - master  # Adjust to your main branch if necessary
   pull_request:
 
 jobs:
