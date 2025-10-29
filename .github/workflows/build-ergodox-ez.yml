@@ -24,8 +24,8 @@ jobs:
             -v "$GITHUB_WORKSPACE":/qmk \
             -w /qmk \
             qmkfm/qmk_firmware \
-            make ergodox_ez:modified
-
+            make ergodox_ez/keymaps/modified
+            
       - name: Collect firmware artifact
         run: |
           mkdir -p firmware_out
