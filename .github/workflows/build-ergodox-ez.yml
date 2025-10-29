@@ -1,4 +1,4 @@
-name: "Build ErgoDox EZ (keymap: default)"
+name: "Build ErgoDox EZ (keymaps: modified, default)"
 
 on:
   workflow_dispatch:
@@ -10,32 +10,46 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    strategy:
+      matrix:
+        keymap: [modified, default]
 
-      - name: List keymaps (debug)
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show keymap folders (host)
         run: |
           ls -al keyboards/ergodox_ez/keymaps || true
-          ls -al keyboards/ergodox_ez/keymaps/default || true
+          ls -al keyboards/ergodox_ez/keymaps/${{ matrix.keymap }} || true
 
-      - name: Build firmware (make ergodox_ez:keymaps:default)
+      # Use the up-to-date QMK CLI image and initialize QMK against the
+      # checked-out repo path. Then compile.
+      - name: Build with QMK CLI (ghcr)
         run: |
           docker run --rm \
+            -e QMK_HOME=/qmk \
             -v "$GITHUB_WORKSPACE":/qmk \
             -w /qmk \
-            qmkfm/qmk_firmware \
-            make ergodox-ez:default
-            
-      - name: Collect firmware artifact
-        run: |
-          mkdir -p firmware_out
-          # QMK usually drops ergodox_ez_modified.hex in repo root or .build/
-          cp -f .build/*.hex firmware_out/ 2>/dev/null || true
-          cp -f *.hex        firmware_out/ 2>/dev/null || true
-          echo "Artifacts:"
-          ls -al firmware_out || true
+            ghcr.io/qmk/qmk_cli:latest \
+            bash -lc "
+              qmk --version && \
+              qmk setup -H /qmk --yes && \
+              qmk info -kb ergodox_ez -km ${{ matrix.keymap }} && \
+              qmk compile -kb ergodox_ez -km ${{ matrix.keymap }}
+            "
 
-      - uses: actions/upload-artifact@v4
+      - name: Collect firmware artifacts
+        run: |
+          mkdir -p firmware_out/${{ matrix.keymap }}
+          # QMK CLI drops output under .build/
+          cp -f .build/*.hex firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
+          cp -f .build/*.bin firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
+          echo "Artifacts for ${{ matrix.keymap }}:"
+          ls -al firmware_out/${{ matrix.keymap }} || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: ergodox-ez-modified
-          path: firmware_out
+          name: ergodox-ez-${{ matrix.keymap }}
+          path: firmware_out/${{ matrix.keymap }}
