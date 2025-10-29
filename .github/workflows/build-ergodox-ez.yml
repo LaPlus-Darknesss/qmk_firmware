@@ -1,4 +1,5 @@
-name: Build ErgoDox EZ (QMK)
+name: Build ErgoDox EZ Glow (keymap: modified)
+
 on:
   workflow_dispatch:
   push:
@@ -9,11 +10,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      # Build using the qmk_firmware container and 'make'
-      - name: Build with qmk_firmware Docker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Optional: show that GitHub sees your keymap folder
+      - name: List keymaps (debug)
+        run: |
+          ls -al keyboards/ergodox_ez/keymaps || true
+          ls -al keyboards/ergodox_ez/keymaps/modified || true
+
+      # Build inside the official qmk_firmware Docker image using 'make'
+      - name: Build firmware
         run: |
           docker run --rm \
             -v "$GITHUB_WORKSPACE":/qmk \
@@ -21,15 +30,17 @@ jobs:
             qmkfm/qmk_firmware \
             make ergodox_ez/glow:modified
 
-      - name: Collect firmware
+      # Collect whatever HEX files QMK produced
+      - name: Collect firmware artifact
         run: |
           mkdir -p firmware_out
-          # QMK names the file like ergodox_ez_glow_YOUR_KEYMAP.hex; also copy from .build if present
-          cp -f *.hex firmware_out/ 2>/dev/null || true
           cp -f .build/*.hex firmware_out/ 2>/dev/null || true
+          cp -f *.hex        firmware_out/ 2>/dev/null || true
+          echo "Artifacts:"
           ls -al firmware_out || true
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ergodox-ez-firmware
+          name: ergodox-ez-glow-modified
           path: firmware_out
