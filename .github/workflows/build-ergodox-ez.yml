@@ -1,62 +1,26 @@
-name: "Build ErgoDox EZ (keymaps: modified, default)"
+name: Build Firmware
 
 on:
-  workflow_dispatch:
   push:
-    paths:
-      - keyboards/ergodox_ez/**
-      - .github/workflows/build-ergodox-ez.yml
+    branches:
+      - main  # Adjust to your main branch if necessary
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        keymap: [modified, default]
-
+    
     steps:
-      - name: Check out your repo
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Clone clean QMK (shallow)
+      - name: Set up QMK environment
         run: |
-          git clone --depth=1 https://github.com/qmk/qmk_firmware.git qmk_firmware
+          git clone https://github.com/qmk/qmk_firmware.git
+          cd qmk_firmware
+          util/qmk_install.sh
 
-      - name: Copy your keymap into the clean tree
+      - name: Build firmware
         run: |
-          test -d keyboards/ergodox_ez/keymaps/${{ matrix.keymap }} || \
-            (echo "Missing keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}" && exit 1)
-          mkdir -p qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}
-          cp -vr keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}/* \
-                qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}/
-
-      - name: Show keymap files (debug)
-        run: |
-          ls -al qmk_firmware/keyboards/ergodox_ez/keymaps/${{ matrix.keymap }}
-
-      # IMPORTANT: do submodules AND the build INSIDE the same container
-      - name: Build inside qmk_firmware Docker (submodules + make)
-        run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE/qmk_firmware":/qmk \
-            -w /qmk \
-            qmkfm/qmk_firmware \
-            bash -lc "
-              git submodule sync --recursive &&
-              git submodule update --init --recursive &&
-              make -j2 SKIP_GIT=1 ergodox_ez:${{ matrix.keymap }}
-            "
-
-      - name: Collect firmware artifacts
-        run: |
-          mkdir -p firmware_out/${{ matrix.keymap }}
-          cp -f qmk_firmware/.build/*.hex firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
-          cp -f qmk_firmware/*.hex        firmware_out/${{ matrix.keymap }}/ 2>/dev/null || true
-          echo "Artifacts for ${{ matrix.keymap }}:"
-          ls -al firmware_out/${{ matrix.keymap }} || true
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ergodox-ez-${{ matrix.keymap }}
-          path: firmware_out/${{ matrix.keymap }}
+          cd qmk_firmware
+          qmk compile -kb ergodox_ez -km modified  # Replace with your keyboard and keymap names
